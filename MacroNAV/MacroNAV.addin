@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ApplicationPlugins>
+  <ApplicationPlugin>
+    <Name>MacroNAV</Name>
+    <Description>MacroNAV: Record, edit, and replay Navisworks workflows as reusable macros</Description>
+    <Uri>file:///$(appdir)/MacroNAV/</Uri>
+    <Assembly>MacroNAV.dll</Assembly>
+    <Icon>MacroNAV.ico</Icon>
+  </ApplicationPlugin>
+</ApplicationPlugins>
