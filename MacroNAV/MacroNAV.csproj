@@ -1,11 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="Current" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project ToolsVersion="Current" DefaultTargets="Build"
+         xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props"
           Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
 
+  <!-- ── Core settings ──────────────────────────────────────────────────── -->
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-    <Platform Condition=" '$(Platform)' == '' ">x64</Platform>
+    <Platform      Condition=" '$(Platform)'       == '' ">x64</Platform>
     <ProjectGuid>{A1B2C3D4-0001-0001-0001-A1B2C3D40001}</ProjectGuid>
     <OutputType>Library</OutputType>
     <RootNamespace>MacroNAV</RootNamespace>
@@ -16,6 +19,7 @@
     <UseWPF>true</UseWPF>
   </PropertyGroup>
 
+  <!-- ── Debug ──────────────────────────────────────────────────────────── -->
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|x64' ">
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
@@ -27,6 +31,8 @@
     <PlatformTarget>x64</PlatformTarget>
   </PropertyGroup>
 
+  <!-- ── Release: auto-detect (prefers NW2027, falls back to NW2025) ────── -->
+  <!--   Build:  msbuild /p:Configuration=Release /p:Platform=x64          -->
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|x64' ">
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
@@ -37,49 +43,54 @@
     <PlatformTarget>x64</PlatformTarget>
   </PropertyGroup>
 
-  <!-- Per-version Release configurations -->
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release-NW2024|x64' ">
-    <DebugType>pdbonly</DebugType>
-    <Optimize>true</Optimize>
-    <OutputPath>bin\Release-NW2024\</OutputPath>
-    <DefineConstants>TRACE;NW2024</DefineConstants>
-    <PlatformTarget>x64</PlatformTarget>
-    <NWPath>C:\Program Files\Autodesk\Navisworks Manage 2024\</NWPath>
-  </PropertyGroup>
+  <!-- ── Release-NW2025: pins to Navisworks 2025 ────────────────────────── -->
+  <!--   Build:  msbuild /p:Configuration=Release-NW2025 /p:Platform=x64   -->
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release-NW2025|x64' ">
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
     <OutputPath>bin\Release-NW2025\</OutputPath>
     <DefineConstants>TRACE;NW2025</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
     <PlatformTarget>x64</PlatformTarget>
     <NWPath>C:\Program Files\Autodesk\Navisworks Manage 2025\</NWPath>
   </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release-NW2026|x64' ">
-    <DebugType>pdbonly</DebugType>
-    <Optimize>true</Optimize>
-    <OutputPath>bin\Release-NW2026\</OutputPath>
-    <DefineConstants>TRACE;NW2026</DefineConstants>
-    <PlatformTarget>x64</PlatformTarget>
-    <NWPath>C:\Program Files\Autodesk\Navisworks Manage 2026\</NWPath>
-  </PropertyGroup>
+
+  <!-- ── Release-NW2027: pins to Navisworks 2027 ────────────────────────── -->
+  <!--   Build:  msbuild /p:Configuration=Release-NW2027 /p:Platform=x64   -->
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release-NW2027|x64' ">
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
     <OutputPath>bin\Release-NW2027\</OutputPath>
     <DefineConstants>TRACE;NW2027</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
     <PlatformTarget>x64</PlatformTarget>
     <NWPath>C:\Program Files\Autodesk\Navisworks Manage 2027\</NWPath>
   </PropertyGroup>
 
-  <!-- Auto-detect NWPath when not pinned -->
+  <!-- ── Auto-detect NWPath for the plain Release config ───────────────── -->
   <PropertyGroup Condition=" '$(NWPath)' == '' ">
-    <NWPath Condition="Exists('C:\Program Files\Autodesk\Navisworks Manage 2027\Autodesk.Navisworks.Api.dll')">C:\Program Files\Autodesk\Navisworks Manage 2027\</NWPath>
-    <NWPath Condition="'$(NWPath)' == '' AND Exists('C:\Program Files\Autodesk\Navisworks Manage 2026\Autodesk.Navisworks.Api.dll')">C:\Program Files\Autodesk\Navisworks Manage 2026\</NWPath>
-    <NWPath Condition="'$(NWPath)' == '' AND Exists('C:\Program Files\Autodesk\Navisworks Manage 2025\Autodesk.Navisworks.Api.dll')">C:\Program Files\Autodesk\Navisworks Manage 2025\</NWPath>
-    <NWPath Condition="'$(NWPath)' == '' AND Exists('C:\Program Files\Autodesk\Navisworks Manage 2024\Autodesk.Navisworks.Api.dll')">C:\Program Files\Autodesk\Navisworks Manage 2024\</NWPath>
-    <NWPath Condition="'$(NWPath)' == ''">C:\Program Files\Autodesk\Navisworks Manage 2025\</NWPath>
+    <NWPath Condition="Exists('C:\Program Files\Autodesk\Navisworks Manage 2027\Autodesk.Navisworks.Api.dll')"
+            >C:\Program Files\Autodesk\Navisworks Manage 2027\</NWPath>
+    <NWPath Condition="'$(NWPath)' == '' AND Exists('C:\Program Files\Autodesk\Navisworks Manage 2025\Autodesk.Navisworks.Api.dll')"
+            >C:\Program Files\Autodesk\Navisworks Manage 2025\</NWPath>
+    <!-- Fallback so the build doesn't error if nothing is installed locally -->
+    <NWPath Condition="'$(NWPath)' == ''"
+            >C:\Program Files\Autodesk\Navisworks Manage 2025\</NWPath>
   </PropertyGroup>
 
+  <!-- Stamp the correct NWxxxx constant when using auto-detect Release config -->
+  <PropertyGroup>
+    <DefineConstants
+      Condition="'$(NWPath)' == 'C:\Program Files\Autodesk\Navisworks Manage 2025\' AND !$(DefineConstants.Contains('NW2025'))"
+      >$(DefineConstants);NW2025</DefineConstants>
+    <DefineConstants
+      Condition="'$(NWPath)' == 'C:\Program Files\Autodesk\Navisworks Manage 2027\' AND !$(DefineConstants.Contains('NW2027'))"
+      >$(DefineConstants);NW2027</DefineConstants>
+  </PropertyGroup>
+
+  <!-- ── References ────────────────────────────────────────────────────── -->
   <ItemGroup>
     <Reference Include="System" />
     <Reference Include="System.Core" />
@@ -102,8 +113,10 @@
     </Reference>
   </ItemGroup>
 
+  <!-- ── Source files ───────────────────────────────────────────────────── -->
   <ItemGroup>
     <Compile Include="PluginMain.cs" />
+    <Compile Include="ClashCompat.cs" />
     <Compile Include="MacroLibrary.cs" />
     <Compile Include="MacroRecorder.cs" />
     <Compile Include="MacroPlayer.cs" />
@@ -117,6 +130,7 @@
     </Compile>
   </ItemGroup>
 
+  <!-- ── XAML ───────────────────────────────────────────────────────────── -->
   <ItemGroup>
     <Page Include="MacroRecorderWindow.xaml">
       <SubType>Designer</SubType>
@@ -128,6 +142,7 @@
     </Page>
   </ItemGroup>
 
+  <!-- ── Loose files ────────────────────────────────────────────────────── -->
   <ItemGroup>
     <None Include="MacroNAV.addin" />
     <None Include="PackageContents.xml" />
@@ -138,4 +153,5 @@
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.WinFX.targets"
           Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.WinFX.targets')" />
+
 </Project>
