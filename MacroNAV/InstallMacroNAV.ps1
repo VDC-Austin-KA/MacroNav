@@ -47,6 +47,9 @@ function Install-ForVersion {
     Copy-Item -Force (Join-Path $ScriptDir "MacroNAV.addin")   $DstDir
     Copy-Item -Force (Join-Path $ScriptDir "PackageContents.xml") $DstDir
 
+    $IcoSrc = Join-Path $ScriptDir "MacroNAV.ico"
+    if (Test-Path $IcoSrc) { Copy-Item -Force $IcoSrc $DstDir }
+
     Write-Host "  [NW$Year] OK" -ForegroundColor Green
     Set-Variable -Name Installed -Value $true -Scope 1
 }

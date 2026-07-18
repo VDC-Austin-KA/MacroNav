@@ -152,7 +152,7 @@ namespace MacroNAV
             using (doc.BeginTransaction("MacroNAV: Configure Clash Test"))
             {
                 var dct  = clash.TestsData;
-                var test = ClashCompat.FindTestByName(dct, testName) ?? ClashCompat.AddNewTest(dct);
+                var test = ClashCompat.GetEditableTest(dct, testName);
                 test.DisplayName = testName;
                 if (double.TryParse(tolStr, out double tol)) test.Tolerance = tol;
                 if (!string.IsNullOrEmpty(selAStr))
@@ -161,6 +161,7 @@ namespace MacroNAV
                 if (!string.IsNullOrEmpty(selBStr))
                     ClashCompat.ApplySelectionSetNames(test.SelectionB, doc,
                         selBStr.Split(new[]{'|'}, StringSplitOptions.RemoveEmptyEntries));
+                ClashCompat.CommitTest(dct, testName, test);
             }
             return StepResult.Ok(step, $"Clash test '{testName}' configured");
         }
@@ -174,14 +175,20 @@ namespace MacroNAV
             catch (Exception ex) { return StepResult.Fail(step, ex.Message); }
 
             var testName = step.Parameters.Get("TestName");
-            var test = ClashCompat.FindTestByName(clash.TestsData, testName);
-            if (test == null) return StepResult.Fail(step, $"Test '{testName}' not found");
+            if (ClashCompat.FindTestByName(clash.TestsData, testName) == null)
+                return StepResult.Fail(step, $"Test '{testName}' not found");
 
             string selStr = step.Parameters.Get("Selection" + ab) ?? string.Empty;
-            var    sel    = ab == "A" ? test.SelectionA : test.SelectionB;
             using (doc.BeginTransaction($"MacroNAV: Set Selection {ab}"))
+            {
+                // Edit a detached copy — tests in the document are read-only.
+                var dct  = clash.TestsData;
+                var test = ClashCompat.GetEditableTest(dct, testName);
+                var sel  = ab == "A" ? test.SelectionA : test.SelectionB;
                 ClashCompat.ApplySelectionSetNames(sel, doc,
                     selStr.Split(new[]{'|'}, StringSplitOptions.RemoveEmptyEntries));
+                ClashCompat.CommitTest(dct, testName, test);
+            }
             return StepResult.Ok(step, $"Set Selection{ab} on '{testName}'");
         }
 
@@ -196,8 +203,9 @@ namespace MacroNAV
             var testName = step.Parameters.Get("TestName");
             var test = ClashCompat.FindTestByName(clash.TestsData, testName);
             if (test == null) return StepResult.Fail(step, $"Test '{testName}' not found");
-            using (doc.BeginTransaction("MacroNAV: Queue Clash Test")) test.TestStatus = ClashTestStatus.New;
-            clash.TestsData.RunAllTests();
+            // TestsRunTest runs exactly this test; no need to mark it stale and
+            // re-run the whole set.
+            clash.TestsData.TestsRunTest(test);
             return StepResult.Ok(step, $"Ran clash test '{testName}'");
         }
 
@@ -208,7 +216,7 @@ namespace MacroNAV
             DocumentClash clash;
             try { clash = doc.GetClash(); }
             catch (Exception ex) { return StepResult.Fail(step, ex.Message); }
-            clash.TestsData.RunAllTests();
+            clash.TestsData.TestsRunAllTests();
             return StepResult.Ok(step, "All clash tests run");
         }
 
@@ -228,24 +236,35 @@ namespace MacroNAV
                 return StepResult.Ok(step, $"Activated saved viewpoint '{name}'");
             }
 
+            var vp = doc.CurrentViewpoint.CreateCopy();
+
+            // Recorded steps carry a lossless camera blob. Fall back to explicit
+            // vectors so hand-authored and older macros still play.
+            if (step.Parameters.TryGetValue("Camera", out string camera)
+                && !string.IsNullOrEmpty(camera)
+                && vp.TrySetCamera(camera))
+            {
+                doc.CurrentViewpoint.CopyFrom(vp);
+                return StepResult.Ok(step, "Viewpoint restored");
+            }
+
             if (!step.Parameters.TryGetValue("PosX", out string pxStr))
                 return StepResult.Fail(step, "No position data stored in step");
 
-            var vp = doc.CurrentViewpoint.CreateCopy();
-            vp.Position       = new Point3D(
+            vp.Position = new Point3D(
                 double.Parse(pxStr),
                 double.Parse(step.Parameters.Get("PosY") ?? "0"),
                 double.Parse(step.Parameters.Get("PosZ") ?? "0"));
-            vp.AlignDirection = new Vector3D(
+            vp.AlignDirection(new Vector3D(
                 double.Parse(step.Parameters.Get("LookX") ?? "0"),
                 double.Parse(step.Parameters.Get("LookY") ?? "1"),
-                double.Parse(step.Parameters.Get("LookZ") ?? "0"));
-            vp.AlignUp        = new Vector3D(
+                double.Parse(step.Parameters.Get("LookZ") ?? "0")));
+            vp.AlignUp(new Vector3D(
                 double.Parse(step.Parameters.Get("UpX") ?? "0"),
                 double.Parse(step.Parameters.Get("UpY") ?? "0"),
-                double.Parse(step.Parameters.Get("UpZ") ?? "1"));
+                double.Parse(step.Parameters.Get("UpZ") ?? "1")));
             if (step.Parameters.TryGetValue("Fov", out string fovStr) && double.TryParse(fovStr, out double fov))
-                vp.FieldOfView = fov;
+                vp.HeightField = fov;
             doc.CurrentViewpoint.CopyFrom(vp);
             return StepResult.Ok(step, "Viewpoint restored");
         }
@@ -259,7 +278,7 @@ namespace MacroNAV
             {
                 var vp = new SavedViewpoint(doc.CurrentViewpoint.CreateCopy());
                 vp.DisplayName = name;
-                doc.SavedViewpoints.RootItem.Children.AddCopy(vp);
+                doc.SavedViewpoints.AddCopy(vp);
             }
             return StepResult.Ok(step, $"Saved viewpoint '{name}'");
         }
@@ -271,7 +290,7 @@ namespace MacroNAV
             var name = step.Parameters.Get("Name");
             var ss   = ClashCompat.FindSelectionSetByName(doc, name);
             if (ss == null) return StepResult.Fail(step, $"Selection set '{name}' not found");
-            doc.CurrentSelection.CopyFrom(ss.GetSelection());
+            doc.CurrentSelection.CopyFrom(ss.GetSelectedItems());
             return StepResult.Ok(step, $"Activated selection set '{name}'");
         }
 
@@ -280,7 +299,9 @@ namespace MacroNAV
             var path = step.Parameters.Get("Path");
             if (string.IsNullOrEmpty(path)) return StepResult.Fail(step, "No path specified");
             if (!System.IO.File.Exists(path)) return StepResult.Fail(step, $"File not found: {path}");
-            NavApp.OpenDocument(path);
+            var target = NavApp.ActiveDocument;
+            if (target == null) return StepResult.Fail(step, "No active document");
+            target.OpenFile(path);
             return StepResult.Ok(step, $"Opened: {path}");
         }
 
@@ -291,7 +312,7 @@ namespace MacroNAV
             if (!System.IO.File.Exists(path)) return StepResult.Fail(step, $"File not found: {path}");
             var doc = NavApp.ActiveDocument;
             if (doc == null) return StepResult.Fail(step, "No active document");
-            doc.Models.AddFile(path);
+            doc.AppendFile(path);
             return StepResult.Ok(step, $"Appended: {path}");
         }
 

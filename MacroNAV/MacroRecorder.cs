@@ -216,7 +216,14 @@ namespace MacroNAV
         private void SnapCurrentViewpoint()
         {
             if (!_isRecording) return;
-            try { NavApp.ActiveDocument?.Dispatcher.Invoke(() => CaptureCurrentViewpoint("[Auto]")); }
+            // Fired from a timer thread; the Navisworks API is main-thread only,
+            // so marshal through the WPF dispatcher that owns the plugin window.
+            try
+            {
+                var dispatcher = System.Windows.Application.Current?.Dispatcher;
+                if (dispatcher == null) return;
+                dispatcher.Invoke(new Action(() => CaptureCurrentViewpoint("[Auto]")));
+            }
             catch { }
         }
 
@@ -230,7 +237,7 @@ namespace MacroNAV
                 {
                     if (item is SelectionSet ss)
                     {
-                        var sel = ss.GetSelection();
+                        var sel = ss.GetSelectedItems();
                         if (SelectionsEqual(current, sel)) return ss.DisplayName;
                     }
                 }
@@ -260,10 +267,10 @@ namespace MacroNAV
                 var test  = ClashCompat.FindTestByName(clash.TestsData, testName);
                 if (test != null)
                 {
-                    selA = ClashCompat.SerialiseSelectionNames(test.SelectionA);
-                    selB = ClashCompat.SerialiseSelectionNames(test.SelectionB);
+                    selA = ClashCompat.SerialiseSelectionNames(test.SelectionA, doc);
+                    selB = ClashCompat.SerialiseSelectionNames(test.SelectionB, doc);
                     tol  = test.Tolerance.ToString("F4");
-                    type = test.Type.ToString();
+                    type = test.TestType.ToString();
                 }
             }
             catch { }
@@ -299,9 +306,12 @@ namespace MacroNAV
         {
             var doc = NavApp.ActiveDocument;
             if (doc == null) return null;
-            var pos  = doc.CurrentViewpoint.Position;
-            var look = doc.CurrentViewpoint.AlignDirection;
-            var up   = doc.CurrentViewpoint.AlignUp;
+            // The view direction/up are only exposed as setters (AlignDirection /
+            // AlignUp); Rotation is a raw quaternion. GetCamera() round-trips the
+            // whole camera losslessly, so store that as the authoritative payload
+            // and keep Pos/Fov alongside it as readable, editable values.
+            var vp   = doc.CurrentViewpoint.Value;
+            var pos  = vp.Position;
             var name = label ?? $"Viewpoint {DateTime.Now:HH:mm:ss}";
             return AddStep(new MacroStep
             {
@@ -311,16 +321,11 @@ namespace MacroNAV
                 {
                     ["Name"]     = name,
                     ["UseSaved"] = "false",
+                    ["Camera"]   = vp.GetCamera(),
                     ["PosX"]     = pos.X.ToString("F6"),
                     ["PosY"]     = pos.Y.ToString("F6"),
                     ["PosZ"]     = pos.Z.ToString("F6"),
-                    ["LookX"]    = look.X.ToString("F6"),
-                    ["LookY"]    = look.Y.ToString("F6"),
-                    ["LookZ"]    = look.Z.ToString("F6"),
-                    ["UpX"]      = up.X.ToString("F6"),
-                    ["UpY"]      = up.Y.ToString("F6"),
-                    ["UpZ"]      = up.Z.ToString("F6"),
-                    ["Fov"]      = doc.CurrentViewpoint.FieldOfView.ToString("F4"),
+                    ["Fov"]      = vp.HeightField.ToString("F4"),
                 }
             });
         }

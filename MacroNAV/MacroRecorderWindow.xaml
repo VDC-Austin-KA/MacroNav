@@ -166,7 +166,7 @@
 
                 <Border Grid.Row="0" Background="#1A1A2A" Padding="8,6">
                     <TextBlock Text="MACRO LIBRARY" FontSize="10" FontWeight="Bold"
-                               Foreground="{StaticResource TextMuted}" LetterSpacing="1.5"/>
+                               Foreground="{StaticResource TextMuted}"/>
                 </Border>
 
                 <ListBox x:Name="MacroListBox" Grid.Row="1" Margin="0"

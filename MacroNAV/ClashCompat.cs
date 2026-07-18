@@ -56,16 +56,29 @@ namespace MacroNAV
 
         // ── Create / copy ─────────────────────────────────────────────────────
 
-        // Creates a brand-new blank ClashTest and returns it.
-        public static ClashTest AddNewTest(DocumentClashTests dct)
+        // Clash tests owned by the document are read-only: mutating one straight
+        // out of the collection throws "Object is Read-Only". Edits must be made
+        // on a detached copy which is then written back via CommitTest.
+        //
+        // Returns a mutable ClashTest for `name` — a copy of the existing test if
+        // there is one, otherwise a fresh blank test.
+        public static ClashTest GetEditableTest(DocumentClashTests dct, string name)
         {
-#if NW2027
-            dct.Value.TestsRoot.AddNewClashTest();
-            return dct.Value.TestsRoot.Children.OfType<ClashTest>().Last();
-#else
-            dct.Tests.AddNewClashTest();
-            return dct.Tests.OfType<ClashTest>().Last();
-#endif
+            var existing = FindTestByName(dct, name);
+            if (existing != null) return (ClashTest)existing.CreateCopy();
+            return new ClashTest { DisplayName = name };
+        }
+
+        // Writes an edited detached test back into the document, replacing the
+        // test of the same name in place if it exists.
+        public static void CommitTest(DocumentClashTests dct, string name, ClashTest edited)
+        {
+            var existing = FindTestByName(dct, name);
+            if (existing == null) { AddCopyAtRoot(dct, edited); return; }
+
+            var index = GetTopLevelItems(dct).IndexOf(existing);
+            if (index < 0) AddCopyAtRoot(dct, edited);
+            else           ReplaceAtRoot(dct, index, edited);
         }
 
         // Adds a copy of an existing ClashTest at the root level.
@@ -110,45 +123,71 @@ namespace MacroNAV
 
         // ── Selection helpers ─────────────────────────────────────────────────
 
+        // A ClashSelection references selection sets indirectly, as opaque
+        // SelectionSource handles. Resolving one back to a named SavedItem (and
+        // creating one from a SavedItem) both go through DocumentSelectionSets.
+
         // Returns the display names of every selection set wired into a
-        // ClashSelectionSource, pipe-delimited, ready to store in a MacroStep.
-        public static string SerialiseSelectionNames(ClashSelectionSource src)
+        // ClashSelection, pipe-delimited, ready to store in a MacroStep.
+        public static string SerialiseSelectionNames(ClashSelection sel, Document doc)
         {
-            if (src?.Selection?.SelectionSets == null) return string.Empty;
-            return string.Join("|", src.Selection.SelectionSets
-                .Select(ss => ss.DisplayName ?? ss.Guid.ToString()));
+            if (sel?.Selection == null || doc == null) return string.Empty;
+            var names = new List<string>();
+            foreach (var source in sel.Selection.SelectionSources)
+            {
+                SavedItem item = null;
+                try { item = doc.SelectionSets.ResolveSelectionSource(source); }
+                catch { }
+                if (item != null && !string.IsNullOrEmpty(item.DisplayName))
+                    names.Add(item.DisplayName);
+            }
+            return string.Join("|", names);
         }
 
-        // Clears the selection sets on a ClashSelectionSource and re-populates
-        // them by looking up names in the document's selection-set tree.
-        public static void ApplySelectionSetNames(ClashSelectionSource src,
+        // Clears the selection sources on a ClashSelection and re-populates them
+        // by looking up names in the document's selection-set tree.
+        public static void ApplySelectionSetNames(ClashSelection sel,
             Document doc, IEnumerable<string> names)
         {
-            src.Selection.SelectionSets.Clear();
+            if (sel?.Selection == null || doc == null) return;
+            sel.Selection.SelectionSources.Clear();
             foreach (var name in names)
             {
                 var found = FindSelectionSetByName(doc, name.Trim());
-                if (found != null)
-                    src.Selection.SelectionSets.Add(found);
+                if (found == null) continue;
+                try { sel.Selection.SelectionSources.Add(doc.SelectionSets.CreateSelectionSource(found)); }
+                catch { }
             }
         }
 
         // ── Document helpers ──────────────────────────────────────────────────
 
+        // SavedItem trees expose no search helper, so walk Children depth-first.
+        private static T FindByName<T>(GroupItem root, string name) where T : SavedItem
+        {
+            if (root == null) return null;
+            foreach (SavedItem child in root.Children)
+            {
+                if (child is T match && match.DisplayName == name) return match;
+                if (child is GroupItem group)
+                {
+                    var nested = FindByName<T>(group, name);
+                    if (nested != null) return nested;
+                }
+            }
+            return null;
+        }
+
         public static SelectionSet FindSelectionSetByName(Document doc, string name)
         {
             if (string.IsNullOrEmpty(name)) return null;
-            return doc.SelectionSets.RootItem
-                .FindFirst(si => si is SelectionSet ss && ss.DisplayName == name, true)
-                as SelectionSet;
+            return FindByName<SelectionSet>(doc.SelectionSets.RootItem, name);
         }
 
         public static SavedViewpoint FindViewpointByName(Document doc, string name)
         {
             if (string.IsNullOrEmpty(name)) return null;
-            return doc.SavedViewpoints.RootItem
-                .FindFirst(si => si is SavedViewpoint vp && vp.DisplayName == name, true)
-                as SavedViewpoint;
+            return FindByName<SavedViewpoint>(doc.SavedViewpoints.RootItem, name);
         }
     }
 }

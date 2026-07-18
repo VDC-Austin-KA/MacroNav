@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
+using Autodesk.Navisworks.Api.Clash;   // GetClash() extension on Document
 using MacroNAV.Models;
 using NavApp = Autodesk.Navisworks.Api.Application;
 
