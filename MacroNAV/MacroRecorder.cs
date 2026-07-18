@@ -42,8 +42,15 @@ namespace MacroNAV
         {
             _isRecording = true;
             _lastSelectionSetName = null;
+            RecorderLog.Session("recording started");
             SnapshotExistingNames();
             SubscribeEvents();
+
+            // Events are bound to whichever document is active now. Opening or
+            // appending a model can swap that document out, which silently
+            // killed every subscription and made recording stop dead.
+            try { NavApp.ActiveDocumentChanged += OnActiveDocumentChanged; } catch { }
+
             AutoNavBridge.Register(this);
             RecordingStarted?.Invoke(this, EventArgs.Empty);
         }
@@ -53,8 +60,25 @@ namespace MacroNAV
             _isRecording = false;
             _vpDebounce.Stop();
             UnsubscribeEvents();
+            try { NavApp.ActiveDocumentChanged -= OnActiveDocumentChanged; } catch { }
             AutoNavBridge.Unregister();
+            RecorderLog.Info($"recording stopped; {_steps.Count} step(s) captured");
             RecordingStopped?.Invoke(this, EventArgs.Empty);
+        }
+
+        // Re-bind to the new document and re-snapshot, so recording survives a
+        // file open / append instead of going quiet.
+        private void OnActiveDocumentChanged(object sender, EventArgs e)
+        {
+            if (!_isRecording) return;
+            RecorderLog.Info("active document changed - resubscribing");
+            try { UnsubscribeEvents(); } catch { }
+            try
+            {
+                SnapshotExistingNames();
+                SubscribeEvents();
+            }
+            catch (Exception ex) { RecorderLog.Warn("resubscribe after document change failed", ex); }
         }
 
         public void ClearSteps() => _steps.Clear();
@@ -62,11 +86,14 @@ namespace MacroNAV
         private void SubscribeEvents()
         {
             var doc = NavApp.ActiveDocument;
-            if (doc == null) return;
-            try { doc.SelectionSets.Changed         += OnSelectionSetsChanged;    } catch { }
-            try { doc.SavedViewpoints.Changed        += OnSavedViewpointsChanged; } catch { }
-            try { doc.CurrentSelection.Changed       += OnCurrentSelectionChanged; } catch { }
-            try { doc.Models.CollectionChanged       += OnModelsChanged;           } catch { }
+            if (doc == null) { RecorderLog.Warn("SubscribeEvents: no active document - auto-capture is DEAD"); return; }
+            int ok = 0;
+            try { doc.SelectionSets.Changed         += OnSelectionSetsChanged;    ok++; } catch (Exception ex) { RecorderLog.Warn("subscribe SelectionSets.Changed failed", ex); }
+            try { doc.SavedViewpoints.Changed        += OnSavedViewpointsChanged; ok++; } catch (Exception ex) { RecorderLog.Warn("subscribe SavedViewpoints.Changed failed", ex); }
+            try { doc.CurrentSelection.Changed       += OnCurrentSelectionChanged; ok++; } catch (Exception ex) { RecorderLog.Warn("subscribe CurrentSelection.Changed failed", ex); }
+            try { doc.Models.CollectionChanged       += OnModelsChanged;           ok++; } catch (Exception ex) { RecorderLog.Warn("subscribe Models.CollectionChanged failed", ex); }
+            RecorderLog.Info($"subscribed to {ok}/4 document events; doc='{doc.Title}', " +
+                             $"{_knownSetNames.Count} existing set(s), {_knownVpNames.Count} existing viewpoint(s)");
         }
 
         private void UnsubscribeEvents()
@@ -127,10 +154,16 @@ namespace MacroNAV
             try
             {
                 var doc = NavApp.ActiveDocument;
-                if (doc == null) return;
-                foreach (var name in EnumerateNames(doc.SelectionSets.RootItem, isViewpoint: false))
+                if (doc == null) { RecorderLog.Warn("SelectionSets.Changed: no active document"); return; }
+
+                var names = EnumerateNames(doc.SelectionSets.RootItem, isViewpoint: false);
+                int added = 0;
+                foreach (var name in names)
                 {
-                    if (!_knownSetNames.Contains(name))
+                    if (_knownSetNames.Contains(name)) continue;
+                    // Isolate each item: one failure must not drop the rest of a
+                    // batch (a generator can create many sets at once).
+                    try
                     {
                         _knownSetNames.Add(name);
                         AddStep(new MacroStep
@@ -140,10 +173,13 @@ namespace MacroNAV
                             Description = "Re-selects this named set on playback (must exist in the target model).",
                             Parameters  = new Dictionary<string, string> { ["Name"] = name }
                         });
+                        added++;
                     }
+                    catch (Exception ex) { RecorderLog.Warn("capture of selection set '" + name + "' failed", ex); }
                 }
+                if (added > 0) RecorderLog.Info($"SelectionSets.Changed: captured {added} new set(s); total steps={_steps.Count}");
             }
-            catch { }
+            catch (Exception ex) { RecorderLog.Warn("OnSelectionSetsChanged failed", ex); }
         }
 
         // A saved viewpoint was created / renamed / removed. Capture any new ones
@@ -154,10 +190,11 @@ namespace MacroNAV
             try
             {
                 var doc = NavApp.ActiveDocument;
-                if (doc == null) return;
+                if (doc == null) { RecorderLog.Warn("SavedViewpoints.Changed: no active document"); return; }
                 foreach (var name in EnumerateNames(doc.SavedViewpoints.RootItem, isViewpoint: true))
                 {
-                    if (!_knownVpNames.Contains(name))
+                    if (_knownVpNames.Contains(name)) continue;
+                    try
                     {
                         _knownVpNames.Add(name);
                         AddStep(new MacroStep
@@ -168,9 +205,10 @@ namespace MacroNAV
                                 { ["Name"] = name, ["UseSaved"] = "true" }
                         });
                     }
+                    catch (Exception ex) { RecorderLog.Warn("capture of viewpoint '" + name + "' failed", ex); }
                 }
             }
-            catch { }
+            catch (Exception ex) { RecorderLog.Warn("OnSavedViewpointsChanged failed", ex); }
         }
 
         private void OnCurrentSelectionChanged(object sender, EventArgs e)
@@ -233,16 +271,31 @@ namespace MacroNAV
             {
                 var current = doc.CurrentSelection.SelectedItems;
                 if (current == null || current.IsEmpty) return null;
-                foreach (SavedItem item in doc.SelectionSets.RootItem.Children)
+
+                // Recurse: real projects file discipline sets inside folders, and
+                // scanning only the root missed every one of them.
+                return FindMatchingSet(doc.SelectionSets.RootItem, current);
+            }
+            catch (Exception ex) { RecorderLog.Warn("FindMatchingSelectionSetName failed", ex); }
+            return null;
+        }
+
+        private static string FindMatchingSet(GroupItem group, ModelItemCollection current)
+        {
+            foreach (SavedItem item in group.Children)
+            {
+                if (item is SelectionSet ss)
                 {
-                    if (item is SelectionSet ss)
-                    {
-                        var sel = ss.GetSelectedItems();
-                        if (SelectionsEqual(current, sel)) return ss.DisplayName;
-                    }
+                    ModelItemCollection sel = null;
+                    try { sel = ss.GetSelectedItems(); } catch { }
+                    if (sel != null && SelectionsEqual(current, sel)) return ss.DisplayName;
+                }
+                if (item is GroupItem g)
+                {
+                    var nested = FindMatchingSet(g, current);
+                    if (nested != null) return nested;
                 }
             }
-            catch { }
             return null;
         }
 
@@ -477,7 +530,13 @@ namespace MacroNAV
         {
             if (step.Parameters == null) step.Parameters = new Dictionary<string, string>();
             _steps.Add(step);
-            StepAdded?.Invoke(this, step);
+
+            // StepAdded runs UI work in the window. A failure there must not
+            // propagate into the capture loops, or one bad step silently aborts
+            // the rest of the batch.
+            try { StepAdded?.Invoke(this, step); }
+            catch (Exception ex) { RecorderLog.Warn("StepAdded handler threw for '" + step.DisplayName + "'", ex); }
+
             return step;
         }
     }
