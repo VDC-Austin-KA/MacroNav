@@ -31,7 +31,30 @@ try {
 }
 finally {
     if ($app) { try { $app.Dispose() } catch {} }
-    Remove-Item -Recurse -Force $harnessDir -ErrorAction SilentlyContinue
+
+    # Dispose returns before Roamer.exe has fully exited, so the harness DLL is
+    # still locked for a moment. Wait for the process to go, then retry the
+    # delete -- otherwise a test plugin stays registered in a real install.
+    $deadline = (Get-Date).AddSeconds(60)
+    while ((Get-Process -Name Roamer -ErrorAction SilentlyContinue) -and (Get-Date) -lt $deadline) {
+        Start-Sleep -Milliseconds 500
+    }
+    $removed = $false
+    while (-not $removed -and (Get-Date) -lt $deadline) {
+        try {
+            Remove-Item -Recurse -Force $harnessDir -ErrorAction Stop
+            $removed = $true
+        }
+        catch {
+            if (-not (Test-Path $harnessDir)) { $removed = $true; break }
+            Start-Sleep -Milliseconds 500
+        }
+    }
+    if ($removed) {
+        Write-Host "Harness plugin removed from Navisworks." -ForegroundColor DarkGray
+    } else {
+        Write-Host "WARNING: could not remove $harnessDir (still locked). Delete it manually." -ForegroundColor Red
+    }
 }
 
 Write-Host ""

@@ -183,9 +183,11 @@
                                                Foreground="{StaticResource TextMuted}"
                                                TextTrimming="CharacterEllipsis"/>
                                     <TextBlock FontSize="10" Foreground="{StaticResource TextMuted}">
-                                        <Run Text="{Binding EnabledStepCount, StringFormat={}{0}}"/>
+                                        <!-- Run.Text binds TwoWay by default; these are computed
+                                             read-only properties, so pin them to OneWay. -->
+                                        <Run Text="{Binding EnabledStepCount, Mode=OneWay}"/>
                                         <Run Text=" / "/>
-                                        <Run Text="{Binding TotalStepCount}"/>
+                                        <Run Text="{Binding TotalStepCount, Mode=OneWay}"/>
                                         <Run Text=" steps"/>
                                     </TextBlock>
                                 </StackPanel>
