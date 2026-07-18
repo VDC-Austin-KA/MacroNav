@@ -1,0 +1,155 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Shared dark control styles.
+
+         A ComboBox drops its items into a Popup, which is a separate visual
+         tree that does NOT inherit the window background. The default popup
+         chrome is the system window colour (white), so the light Foreground
+         the windows set produced white text on a white popup. Retemplating is
+         the reliable fix: styling the items alone still leaves white gutters
+         around them.
+
+         Self-contained brushes (Ctl* prefix) so this dictionary can be merged
+         into any window without depending on that window's resource names. -->
+
+    <SolidColorBrush x:Key="CtlBg"        Color="#2D2D44"/>
+    <SolidColorBrush x:Key="CtlBgPopup"   Color="#252535"/>
+    <SolidColorBrush x:Key="CtlBgHover"   Color="#3A3A55"/>
+    <SolidColorBrush x:Key="CtlBgSelect"  Color="#3A3A66"/>
+    <SolidColorBrush x:Key="CtlBorder"    Color="#3A3A55"/>
+    <SolidColorBrush x:Key="CtlText"      Color="#E8E8F0"/>
+    <SolidColorBrush x:Key="CtlTextMuted" Color="#888899"/>
+    <SolidColorBrush x:Key="CtlAccent"    Color="#4F9EF8"/>
+
+    <!-- Dropdown items: explicit colours so they never fall back to system. -->
+    <Style TargetType="ComboBoxItem">
+        <Setter Property="Background"          Value="Transparent"/>
+        <Setter Property="Foreground"          Value="{StaticResource CtlText}"/>
+        <Setter Property="Padding"             Value="8,5"/>
+        <Setter Property="SnapsToDevicePixels" Value="True"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBoxItem">
+                    <Border x:Name="Chrome"
+                            Background="{TemplateBinding Background}"
+                            Padding="{TemplateBinding Padding}"
+                            SnapsToDevicePixels="True">
+                        <ContentPresenter HorizontalAlignment="Left"
+                                          VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsHighlighted" Value="True">
+                            <Setter TargetName="Chrome" Property="Background"
+                                    Value="{StaticResource CtlBgHover}"/>
+                            <Setter Property="Foreground" Value="White"/>
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="Chrome" Property="Background"
+                                    Value="{StaticResource CtlBgSelect}"/>
+                            <Setter Property="Foreground" Value="White"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Foreground"
+                                    Value="{StaticResource CtlTextMuted}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- The box itself, plus the popup surface behind the items. -->
+    <Style TargetType="ComboBox">
+        <Setter Property="Background"           Value="{StaticResource CtlBg}"/>
+        <Setter Property="Foreground"           Value="{StaticResource CtlText}"/>
+        <Setter Property="BorderBrush"          Value="{StaticResource CtlBorder}"/>
+        <Setter Property="BorderThickness"      Value="1"/>
+        <Setter Property="Padding"              Value="8,4"/>
+        <Setter Property="FontSize"             Value="12"/>
+        <Setter Property="MinHeight"            Value="24"/>
+        <Setter Property="HorizontalContentAlignment" Value="Left"/>
+        <Setter Property="VerticalContentAlignment"   Value="Center"/>
+        <Setter Property="SnapsToDevicePixels"  Value="True"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBox">
+                    <Grid>
+                        <ToggleButton x:Name="Toggle"
+                                      Focusable="False"
+                                      ClickMode="Press"
+                                      IsChecked="{Binding IsDropDownOpen, Mode=TwoWay,
+                                                  RelativeSource={RelativeSource TemplatedParent}}">
+                            <ToggleButton.Template>
+                                <ControlTemplate TargetType="ToggleButton">
+                                    <Border x:Name="Box"
+                                            Background="{StaticResource CtlBg}"
+                                            BorderBrush="{StaticResource CtlBorder}"
+                                            BorderThickness="1"
+                                            CornerRadius="4">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="20"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Path Grid.Column="1"
+                                                  HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"
+                                                  Data="M 0 0 L 4 4 L 8 0 Z"
+                                                  Fill="{StaticResource CtlText}"/>
+                                        </Grid>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Box" Property="Background"
+                                                    Value="{StaticResource CtlBgHover}"/>
+                                        </Trigger>
+                                        <Trigger Property="IsChecked" Value="True">
+                                            <Setter TargetName="Box" Property="BorderBrush"
+                                                    Value="{StaticResource CtlAccent}"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </ToggleButton.Template>
+                        </ToggleButton>
+
+                        <ContentPresenter x:Name="Selection"
+                                          Margin="{TemplateBinding Padding}"
+                                          HorizontalAlignment="Left"
+                                          VerticalAlignment="Center"
+                                          IsHitTestVisible="False"
+                                          Content="{TemplateBinding SelectionBoxItem}"
+                                          ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                          TextElement.Foreground="{TemplateBinding Foreground}"/>
+
+                        <Popup x:Name="PART_Popup"
+                               AllowsTransparency="True"
+                               Placement="Bottom"
+                               Focusable="False"
+                               PopupAnimation="Fade"
+                               IsOpen="{TemplateBinding IsDropDownOpen}">
+                            <Border Background="{StaticResource CtlBgPopup}"
+                                    BorderBrush="{StaticResource CtlBorder}"
+                                    BorderThickness="1"
+                                    CornerRadius="4"
+                                    MinWidth="{Binding ActualWidth,
+                                              RelativeSource={RelativeSource TemplatedParent}}"
+                                    MaxHeight="{TemplateBinding MaxDropDownHeight}"
+                                    SnapsToDevicePixels="True">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained"/>
+                                </ScrollViewer>
+                            </Border>
+                        </Popup>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.45"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+</ResourceDictionary>

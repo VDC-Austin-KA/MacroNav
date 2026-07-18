@@ -152,6 +152,22 @@ namespace MacroNAV
             {
                 new ParameterDef { Key="TestName", Description="Name of the clash test to ungroup (reset to individual results)", Required=true },
             },
+
+            // Applies a naming template straight through AutoNAV's ClashGrouper,
+            // so playback never loads AutoNAV's rename tree.
+            [MacroStepType.AutoNavRenameGroups] = new List<ParameterDef>
+            {
+                new ParameterDef { Key="TestName", Required=false, DefaultVal="*",
+                    Description="Clash test to rename, or * for every test in the document" },
+                new ParameterDef { Key="Template", Required=false, DefaultVal=AutoNavRenameTemplates.Default,
+                    Description="Naming template. Tokens: " + "{TestName} {Level} {Area} {SelectionA} {SelectionB} {Month} {Day} {Year} {#}" },
+                new ParameterDef { Key="Statuses", Required=false, DefaultVal="New|Active",
+                    Description="Clash statuses to include, pipe-delimited (New|Active|Reviewed|Approved|Resolved)" },
+            },
+
+            [MacroStepType.AutoNavGroupWallsFloors] = new List<ParameterDef>(),
+
+            [MacroStepType.AutoNavRunAllClashTests] = new List<ParameterDef>(),
         };
 
         public static List<ParameterDef> For(MacroStepType type)

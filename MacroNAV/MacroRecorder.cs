@@ -447,6 +447,41 @@ namespace MacroNAV
                 }
             });
 
+        // Rename clash groups by template. Executed through AutoNAV's ClashGrouper
+        // directly, so replaying it does not load AutoNAV's rename tree first.
+        public MacroStep CaptureAutoNavRenameGroups(string testName, string template,
+            string statuses = "New|Active")
+        {
+            var target = string.IsNullOrWhiteSpace(testName) ? "*" : testName;
+            return AddStep(new MacroStep
+            {
+                StepType    = MacroStepType.AutoNavRenameGroups,
+                DisplayName = target == "*"
+                    ? "AutoNAV: Rename groups (all tests)"
+                    : $"AutoNAV: Rename groups in {target}",
+                Description = "Applies the naming template without opening AutoNAV's rename tab.",
+                Parameters  = new Dictionary<string, string>
+                {
+                    ["TestName"] = target,
+                    ["Template"] = string.IsNullOrWhiteSpace(template)
+                                   ? AutoNavRenameTemplates.Default : template,
+                    ["Statuses"] = statuses,
+                }
+            });
+        }
+
+        public MacroStep CaptureAutoNavGroupWallsFloors() => AddStep(new MacroStep
+        {
+            StepType    = MacroStepType.AutoNavGroupWallsFloors,
+            DisplayName = "AutoNAV: Group all tests by Walls/Floors"
+        });
+
+        public MacroStep CaptureAutoNavRunAllClashTests() => AddStep(new MacroStep
+        {
+            StepType    = MacroStepType.AutoNavRunAllClashTests,
+            DisplayName = "AutoNAV: Run all clash tests"
+        });
+
         public MacroStep CaptureAutoNavClashTestGen() => AddStep(new MacroStep
         {
             StepType    = MacroStepType.AutoNavClashTestGen,

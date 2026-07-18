@@ -8,6 +8,13 @@
         Background="#1E1E2E">
 
     <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <!-- Dark ComboBox/ComboBoxItem styles; the default popup chrome
+                     is system white, which made dropdown text unreadable. -->
+                <ResourceDictionary Source="/MacroNAV;component/Themes/Controls.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+
         <!-- Colors -->
         <SolidColorBrush x:Key="BgDeep"      Color="#1E1E2E"/>
         <SolidColorBrush x:Key="BgPanel"     Color="#252535"/>
@@ -112,6 +119,7 @@
             <Setter Property="FontSize"   Value="12"/>
             <Setter Property="Padding"    Value="0"/>
         </Style>
+        </ResourceDictionary>
     </Window.Resources>
 
     <Grid>
@@ -441,8 +449,26 @@
                                 Margin="0,0,0,4" Click="BtnCaptureAutoNavSS_Click"
                                 ToolTip="Insert an AutoNAV search set generation step"/>
                         <Button Content="AutoNAV: Clash Tests" Style="{StaticResource BtnBase}"
-                                Click="BtnCaptureAutoNavCT_Click"
+                                Margin="0,0,0,4" Click="BtnCaptureAutoNavCT_Click"
                                 ToolTip="Insert an AutoNAV clash test generation step"/>
+                        <Button Content="AutoNAV: Run All Clash Tests" Style="{StaticResource BtnBase}"
+                                Margin="0,0,0,4" Click="BtnCaptureAutoNavRunAll_Click"
+                                ToolTip="Run every clash test via AutoNAV, without a grouping pass"/>
+                        <Button Content="AutoNAV: Group by Walls/Floors" Style="{StaticResource BtnBase}"
+                                Margin="0,0,0,8" Click="BtnCaptureAutoNavWallsFloors_Click"
+                                ToolTip="Group every test by walls and floors"/>
+
+                        <!-- Rename: applies a template through AutoNAV's grouper
+                             directly, so replay skips loading its rename tree. -->
+                        <TextBlock Text="Rename clash groups" FontSize="10"
+                                   Foreground="{StaticResource TextMuted}" Margin="0,0,0,2"/>
+                        <ComboBox x:Name="CboRenameTemplate" Margin="0,0,0,4"
+                                  ToolTip="Naming template applied to clash groups"/>
+                        <TextBox x:Name="TxtRenameTest" Margin="0,0,0,4" Text="*"
+                                 ToolTip="Clash test to rename, or * for every test"/>
+                        <Button Content="AutoNAV: Rename Groups" Style="{StaticResource BtnAccent}"
+                                Click="BtnCaptureAutoNavRename_Click"
+                                ToolTip="Insert a rename step using the template above"/>
                     </StackPanel>
                 </ScrollViewer>
             </Grid>

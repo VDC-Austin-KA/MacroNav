@@ -39,6 +39,14 @@ namespace MacroNAV.Models
         AutoNavClashGroupTest,              // F6/7: group a single named test
         AutoNavClashUngroup,               // ungroup (reset to individual results)
 
+        // AutoNAV — Group renaming.
+        // Calls ClashGrouper directly, so playback skips AutoNAV's rename tree
+        // (loading the dashboard, every test and every group) and just applies
+        // the template. Set TestName to * to sweep all tests.
+        AutoNavRenameGroups,
+        AutoNavGroupWallsFloors,            // group every test by walls/floors
+        AutoNavRunAllClashTests,            // run all tests, no grouping pass
+
         // Legacy AutoNAV (kept for backwards compatibility with saved macros)
         AutoNavSearchSetGen,
         AutoNavClashTestGenLegacy,
@@ -101,6 +109,9 @@ namespace MacroNAV.Models
                 case MacroStepType.AutoNavClashRunAndGroup:        return "🤖▶";
                 case MacroStepType.AutoNavClashGroupTest:          return "🤖🗂";
                 case MacroStepType.AutoNavClashUngroup:            return "🤖↩";
+                case MacroStepType.AutoNavRenameGroups:            return "🤖✏";
+                case MacroStepType.AutoNavGroupWallsFloors:        return "🤖🧱";
+                case MacroStepType.AutoNavRunAllClashTests:        return "🤖⏵";
                 case MacroStepType.FileOpen:
                 case MacroStepType.FileAppend:                     return "📁";
                 default:                                            return "•";
@@ -135,6 +146,9 @@ namespace MacroNAV.Models
                 case MacroStepType.AutoNavClashRunAndGroup:
                 case MacroStepType.AutoNavClashGroupTest:
                 case MacroStepType.AutoNavClashUngroup:
+                case MacroStepType.AutoNavRenameGroups:
+                case MacroStepType.AutoNavGroupWallsFloors:
+                case MacroStepType.AutoNavRunAllClashTests:
                 case MacroStepType.AutoNavSearchSetGen:
                 case MacroStepType.AutoNavClashTestGenLegacy:
                     return "AutoNAV";

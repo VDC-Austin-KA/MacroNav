@@ -7,6 +7,14 @@
         Background="#1E1E2E">
 
     <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <!-- Supplies the dark ComboBox/ComboBoxItem styles; the local
+                     style below only coloured the closed box, leaving the
+                     dropdown popup white-on-white. -->
+                <ResourceDictionary Source="/MacroNAV;component/Themes/Controls.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+
         <SolidColorBrush x:Key="BgPanel"    Color="#252535"/>
         <SolidColorBrush x:Key="BgCard"     Color="#2D2D44"/>
         <SolidColorBrush x:Key="BgHover"    Color="#3A3A55"/>
@@ -29,12 +37,6 @@
             <Setter Property="FontSize"   Value="12"/>
             <Setter Property="Padding"    Value="0,4,0,2"/>
         </Style>
-        <Style TargetType="ComboBox">
-            <Setter Property="Background"  Value="{StaticResource BgCard}"/>
-            <Setter Property="Foreground"  Value="{StaticResource TextPrimary}"/>
-            <Setter Property="BorderBrush" Value="{StaticResource Border}"/>
-            <Setter Property="Padding"     Value="6,4"/>
-        </Style>
         <Style x:Key="BtnBase" TargetType="Button">
             <Setter Property="Foreground"      Value="{StaticResource TextPrimary}"/>
             <Setter Property="Background"      Value="{StaticResource BgCard}"/>
@@ -55,6 +57,7 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        </ResourceDictionary>
     </Window.Resources>
 
     <Grid Margin="14">
