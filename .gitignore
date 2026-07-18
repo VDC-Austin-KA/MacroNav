@@ -1,0 +1,11 @@
+# Build output
+bin/
+obj/
+
+# Visual Studio / MSBuild
+*.user
+*.suo
+.vs/
+
+# Harness reports
+*.log
