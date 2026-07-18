@@ -16,50 +16,85 @@ namespace MacroNAV
         {
             InitializeComponent();
             _original = step;
-
             Title = isNew ? "Insert New Step" : "Edit Step";
 
-            // Populate step type combo
             foreach (MacroStepType t in Enum.GetValues(typeof(MacroStepType)))
-                CboStepType.Items.Add(new ComboBoxItem { Content = t.ToString(), Tag = t });
+                CboStepType.Items.Add(new ComboBoxItem
+                {
+                    Content = $"{MacroStep.StepTypeIcon(t)}  {t}",
+                    Tag     = t,
+                    ToolTip = MacroStep.StepTypeCategory(t)
+                });
 
-            // Select current type
             foreach (ComboBoxItem item in CboStepType.Items)
                 if ((MacroStepType)item.Tag == step.StepType)
                 { CboStepType.SelectedItem = item; break; }
 
-            TxtDisplayName.Text = step.DisplayName;
-            TxtDescription.Text = step.Description;
+            TxtDisplayName.Text  = step.DisplayName;
+            TxtDescription.Text  = step.Description;
             ChkEnabled.IsChecked = step.IsEnabled;
 
-            // Load parameters into grid
             var rows = new ObservableCollection<ParamRow>();
             if (step.Parameters != null)
                 foreach (var kvp in step.Parameters)
                     rows.Add(new ParamRow { Key = kvp.Key, Value = kvp.Value });
             ParamGrid.ItemsSource = rows;
+
+            RefreshSchemaHint(step.StepType);
         }
 
         private void CboStepType_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (CboStepType.SelectedItem is ComboBoxItem item)
-                TxtDisplayName.Text = GenerateDefaultName((MacroStepType)item.Tag);
+            if (!(CboStepType.SelectedItem is ComboBoxItem item)) return;
+            var t = (MacroStepType)item.Tag;
+            TxtDisplayName.Text = GenerateDefaultName(t);
+            RefreshSchemaHint(t);
+            SeedDefaultParameters(t);
+        }
+
+        private void RefreshSchemaHint(MacroStepType t)
+        {
+            if (TxtSchemaHint == null) return;
+            TxtSchemaHint.Text = StepParameterSchema.HintText(t);
+        }
+
+        private void SeedDefaultParameters(MacroStepType t)
+        {
+            if (!(ParamGrid.ItemsSource is ObservableCollection<ParamRow> rows)) return;
+            if (rows.Count > 0) return;
+            foreach (var def in StepParameterSchema.For(t))
+                if (!string.IsNullOrEmpty(def.DefaultVal) || def.Required)
+                    rows.Add(new ParamRow { Key = def.Key, Value = def.DefaultVal ?? string.Empty });
         }
 
         private string GenerateDefaultName(MacroStepType t)
         {
-            // Only override if the field is still empty or matches old default
             if (!string.IsNullOrWhiteSpace(TxtDisplayName?.Text)) return TxtDisplayName.Text;
             switch (t)
             {
-                case MacroStepType.Comment: return "// Comment";
-                case MacroStepType.Delay: return "Wait 1000ms";
-                case MacroStepType.ClashCreateTest: return "Create Clash Test";
-                case MacroStepType.ClashRunTest: return "Run Clash Test";
-                case MacroStepType.ClashRunAllTests: return "Run All Clash Tests";
-                case MacroStepType.ViewpointActivate: return "Go to Viewpoint";
-                case MacroStepType.SearchSetActivate: return "Activate Selection Set";
-                default: return t.ToString();
+                case MacroStepType.Comment:                          return "// Comment";
+                case MacroStepType.Delay:                            return "Wait 1000ms";
+                case MacroStepType.ClashCreateTest:                  return "Configure Clash Test";
+                case MacroStepType.ClashSetSelectionA:               return "Set Selection A";
+                case MacroStepType.ClashSetSelectionB:               return "Set Selection B";
+                case MacroStepType.ClashRunTest:                     return "Run Clash Test";
+                case MacroStepType.ClashRunAllTests:                 return "Run All Clash Tests";
+                case MacroStepType.ClashAssignStatus:                return "Assign Clash Status";
+                case MacroStepType.SearchSetCreate:                  return "Create Search Set";
+                case MacroStepType.SearchSetActivate:                return "Activate Selection Set";
+                case MacroStepType.SearchSetDelete:                  return "Delete Search Set";
+                case MacroStepType.ViewpointActivate:                return "Go to Viewpoint";
+                case MacroStepType.ViewpointSaveCurrent:             return "Save Current Viewpoint";
+                case MacroStepType.AutoNavFunction1SearchSetGen:     return "AutoNAV F1: Generate Discipline Search Sets";
+                case MacroStepType.AutoNavFunction2SearchSetGen:     return "AutoNAV F2: Property-Based Search Sets";
+                case MacroStepType.AutoNavFunction3CustomSearchSetGen: return "AutoNAV F3: Custom Search Sets";
+                case MacroStepType.AutoNavClashTestGen:              return "AutoNAV F4: Generate Clash Tests";
+                case MacroStepType.AutoNavClashRunAndGroup:          return "AutoNAV F5: Run & Group";
+                case MacroStepType.AutoNavClashGroupTest:            return "AutoNAV F6: Group Clash Test";
+                case MacroStepType.AutoNavClashUngroup:              return "AutoNAV: Ungroup Clashes";
+                case MacroStepType.FileOpen:                         return "Open File";
+                case MacroStepType.FileAppend:                       return "Append File";
+                default:                                              return t.ToString();
             }
         }
 
@@ -79,14 +114,13 @@ namespace MacroNAV
 
             ResultStep = new MacroStep
             {
-                Id = _original.Id,
-                StepType = selectedType,
+                Id          = _original.Id,
+                StepType    = selectedType,
                 DisplayName = TxtDisplayName.Text.Trim(),
                 Description = TxtDescription.Text?.Trim() ?? string.Empty,
-                Parameters = dict,
-                IsEnabled = ChkEnabled.IsChecked == true,
+                Parameters  = dict,
+                IsEnabled   = ChkEnabled.IsChecked == true,
             };
-
             DialogResult = true;
         }
 
@@ -96,7 +130,7 @@ namespace MacroNAV
 
     public class ParamRow
     {
-        public string Key { get; set; }
+        public string Key   { get; set; }
         public string Value { get; set; }
     }
 }
