@@ -108,6 +108,7 @@
     <Compile Include="ClashCompat.cs" />
     <Compile Include="RecorderLog.cs" />
     <Compile Include="AutoNavBridge.cs" />
+    <Compile Include="AutoNavRenameTemplates.cs" />
     <Compile Include="StepParameterSchema.cs" />
     <Compile Include="MacroLibrary.cs" />
     <Compile Include="MacroRecorder.cs" />
@@ -123,6 +124,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Page Include="Themes\Controls.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
     <Page Include="MacroRecorderWindow.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
@@ -148,4 +153,6 @@
           Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.WinFX.targets')" />
 
 </Project>
+
+
 

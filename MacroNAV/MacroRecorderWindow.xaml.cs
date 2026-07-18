@@ -39,6 +39,7 @@ namespace MacroNAV
 
             _library.Load();
             RefreshMacroList();
+            PopulateRenameTemplates();
 
             // Recorder events
             _recorder.StepAdded += (s, step) => Dispatcher.Invoke(() => AppendStep(step));
@@ -529,6 +530,47 @@ namespace MacroNAV
             EnsureRecording();
             _recorder.CaptureAutoNavClashTestGen();
             SetStatus("AutoNAV Clash Test step added — edit parameters as needed.");
+        }
+
+        private void BtnCaptureAutoNavRunAll_Click(object sender, RoutedEventArgs e)
+        {
+            EnsureRecording();
+            _recorder.CaptureAutoNavRunAllClashTests();
+            SetStatus("AutoNAV Run All Clash Tests step added.");
+        }
+
+        private void BtnCaptureAutoNavWallsFloors_Click(object sender, RoutedEventArgs e)
+        {
+            EnsureRecording();
+            _recorder.CaptureAutoNavGroupWallsFloors();
+            SetStatus("AutoNAV Group by Walls/Floors step added.");
+        }
+
+        private void BtnCaptureAutoNavRename_Click(object sender, RoutedEventArgs e)
+        {
+            EnsureRecording();
+            var template = (CboRenameTemplate.SelectedItem as ComboBoxItem)?.Tag as string
+                           ?? AutoNavRenameTemplates.Default;
+            var test = string.IsNullOrWhiteSpace(TxtRenameTest.Text) ? "*" : TxtRenameTest.Text.Trim();
+            _recorder.CaptureAutoNavRenameGroups(test, template);
+            SetStatus($"AutoNAV Rename step added for '{test}'.");
+        }
+
+        // Presets come from AutoNavRenameTemplates so the macro can pick one
+        // without opening AutoNAV's rename tab.
+        private void PopulateRenameTemplates()
+        {
+            CboRenameTemplate.Items.Clear();
+            foreach (var preset in AutoNavRenameTemplates.Presets)
+            {
+                CboRenameTemplate.Items.Add(new ComboBoxItem
+                {
+                    Content = preset.Key,
+                    Tag     = preset.Value,
+                    ToolTip = preset.Value
+                });
+            }
+            if (CboRenameTemplate.Items.Count > 0) CboRenameTemplate.SelectedIndex = 0;
         }
 
         // ── Helpers ───────────────────────────────────────────────
