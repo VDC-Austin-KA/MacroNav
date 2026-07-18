@@ -22,9 +22,19 @@ namespace MacroNAV
         private ObservableCollection<StepViewModel> _stepVMs = new ObservableCollection<StepViewModel>();
         private bool _suppressMetaChange;
 
+        // Single live instance. Because the window is shown modelessly from
+        // PluginMain.Execute(), this static reference keeps it alive after
+        // Execute() returns (otherwise it would be garbage-collected) and lets
+        // a second invocation re-focus the existing window instead of opening
+        // a duplicate.
+        public static MacroRecorderWindow Instance { get; private set; }
+
         public MacroRecorderWindow()
         {
             InitializeComponent();
+
+            Instance = this;
+            Closed += OnWindowClosed;
 
             _library.Load();
             RefreshMacroList();
@@ -52,7 +62,17 @@ namespace MacroNAV
             StepListBox.ItemsSource = _stepVMs;
         }
 
-        // ── Macro Library ────────────────────────────────────────────────
+        private void OnWindowClosed(object sender, EventArgs e)
+        {
+            // Ensure recording is torn down and event handlers detached when the
+            // window closes, and release the static reference so a fresh window
+            // can be opened next time.
+            try { _recorder.StopRecording(); } catch { }
+            _blinkTimer.Stop();
+            Instance = null;
+        }
+
+        // ── Macro Library ───────────────────────────────────
 
         private void RefreshMacroList()
         {
@@ -159,7 +179,7 @@ namespace MacroNAV
             RefreshMacroList();
         }
 
-        // ── Step List ──────────────────────────────────────────────────────────
+        // ── Step List ───────────────────────────────────────────────
 
         private void AppendStep(MacroStep step)
         {
@@ -286,14 +306,17 @@ namespace MacroNAV
             UpdateStepCount();
         }
 
-        // ── Recording ────────────────────────────────────────────────────────
+        // ── Recording ─────────────────────────────────────
 
         private void BtnRecord_Click(object sender, RoutedEventArgs e)
         {
             if (_activeMacro == null)
             {
-                MessageBox.Show("Create or select a macro first.", "MacroNAV");
-                return;
+                // Auto-create a macro so the user is never blocked from recording.
+                var macro = new Macro { Name = "Recording " + DateTime.Now.ToString("yyyy-MM-dd HH:mm") };
+                _library.AddOrUpdate(macro);
+                RefreshMacroList();
+                MacroListBox.SelectedItem = _library.Macros.FirstOrDefault(m => m.Id == macro.Id);
             }
             _recorder.StartRecording();
         }
@@ -308,7 +331,9 @@ namespace MacroNAV
             RecordingDot.Visibility = Visibility.Visible;
             RecordingLabel.Visibility = Visibility.Visible;
             _blinkTimer.Start();
-            SetStatus("Recording... use Quick Capture buttons to record steps.");
+            SetStatus("Recording — work in Navisworks. Selection sets, new saved viewpoints, "
+                    + "model changes and AutoNAV F1–F7 are captured automatically. "
+                    + "Use Quick Capture for clash runs and the current camera view.");
         }
 
         private void OnRecordingStopped()
@@ -322,7 +347,7 @@ namespace MacroNAV
             SetStatus($"Recording stopped. {_stepVMs.Count} steps captured.");
         }
 
-        // ── Playback ───────────────────────────────────────────────────────────
+        // ── Playback ───────────────────────────────────────────
 
         private async void BtnPlay_Click(object sender, RoutedEventArgs e)
         {
@@ -348,7 +373,7 @@ namespace MacroNAV
             SetStatus("Playback complete.");
         }
 
-        // ── Quick Capture Panel ──────────────────────────────────────────
+        // ── Quick Capture Panel ───────────────────────────
 
         private void EnsureRecording()
         {
@@ -501,11 +526,11 @@ namespace MacroNAV
         private void BtnCaptureAutoNavCT_Click(object sender, RoutedEventArgs e)
         {
             EnsureRecording();
-            _recorder.CaptureAutoNavClashTestGen("All");
+            _recorder.CaptureAutoNavClashTestGen();
             SetStatus("AutoNAV Clash Test step added — edit parameters as needed.");
         }
 
-        // ── Helpers ────────────────────────────────────────────────────────────
+        // ── Helpers ───────────────────────────────────────────────
 
         private void CommitActiveStepsToMacro()
         {
@@ -520,7 +545,7 @@ namespace MacroNAV
             => string.Concat(name.Split(System.IO.Path.GetInvalidFileNameChars()));
     }
 
-    // ── Step ViewModel ──────────────────────────────────────────────────
+    // ── Step ViewModel ──────────────────────────────────
 
     public class StepViewModel : System.ComponentModel.INotifyPropertyChanged
     {

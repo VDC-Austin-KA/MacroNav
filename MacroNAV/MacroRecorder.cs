@@ -19,6 +19,11 @@ namespace MacroNAV
 
         private string _lastSelectionSetName;
 
+        // Snapshots of what existed when recording started, so the *.Changed
+        // events can tell an addition apart from a rename/remove/reorder.
+        private readonly HashSet<string> _knownSetNames = new HashSet<string>();
+        private readonly HashSet<string> _knownVpNames  = new HashSet<string>();
+
         public bool IsRecording   => _isRecording;
         public bool AutoCapture   { get => _autoCapture; set => _autoCapture = value; }
         public IReadOnlyList<MacroStep> Steps => _steps.AsReadOnly();
@@ -37,6 +42,7 @@ namespace MacroNAV
         {
             _isRecording = true;
             _lastSelectionSetName = null;
+            SnapshotExistingNames();
             SubscribeEvents();
             AutoNavBridge.Register(this);
             RecordingStarted?.Invoke(this, EventArgs.Empty);
@@ -73,8 +79,99 @@ namespace MacroNAV
             try { doc.Models.CollectionChanged       -= OnModelsChanged;           } catch { }
         }
 
-        private void OnSelectionSetsChanged(object sender, EventArgs e) { }
-        private void OnSavedViewpointsChanged(object sender, EventArgs e) { }
+        // Populate the "known" name sets from the current document so that
+        // subsequent Changed events can detect genuinely new items.
+        private void SnapshotExistingNames()
+        {
+            _knownSetNames.Clear();
+            _knownVpNames.Clear();
+            try
+            {
+                var doc = NavApp.ActiveDocument;
+                if (doc == null) return;
+                foreach (var n in EnumerateNames(doc.SelectionSets.RootItem, isViewpoint: false))
+                    _knownSetNames.Add(n);
+                foreach (var n in EnumerateNames(doc.SavedViewpoints.RootItem, isViewpoint: true))
+                    _knownVpNames.Add(n);
+            }
+            catch { }
+        }
+
+        private static IEnumerable<string> EnumerateNames(GroupItem root, bool isViewpoint)
+        {
+            var results = new List<string>();
+            void Walk(GroupItem group)
+            {
+                foreach (SavedItem item in group.Children)
+                {
+                    if (isViewpoint)
+                    {
+                        if (item is SavedViewpoint vp) results.Add(vp.DisplayName);
+                    }
+                    else
+                    {
+                        if (item is SelectionSet ss) results.Add(ss.DisplayName);
+                    }
+                    if (item is GroupItem g) Walk(g);
+                }
+            }
+            try { Walk(root); } catch { }
+            return results;
+        }
+
+        // A selection set was created / renamed / removed. Capture any that are
+        // new since the last snapshot, then refresh the snapshot.
+        private void OnSelectionSetsChanged(object sender, EventArgs e)
+        {
+            if (!_autoCapture || !_isRecording) return;
+            try
+            {
+                var doc = NavApp.ActiveDocument;
+                if (doc == null) return;
+                foreach (var name in EnumerateNames(doc.SelectionSets.RootItem, isViewpoint: false))
+                {
+                    if (!_knownSetNames.Contains(name))
+                    {
+                        _knownSetNames.Add(name);
+                        AddStep(new MacroStep
+                        {
+                            StepType    = MacroStepType.SearchSetActivate,
+                            DisplayName = $"[Auto] Selection set created: {name}",
+                            Description = "Re-selects this named set on playback (must exist in the target model).",
+                            Parameters  = new Dictionary<string, string> { ["Name"] = name }
+                        });
+                    }
+                }
+            }
+            catch { }
+        }
+
+        // A saved viewpoint was created / renamed / removed. Capture any new ones
+        // as an "activate saved viewpoint" step (replayable on the same model).
+        private void OnSavedViewpointsChanged(object sender, EventArgs e)
+        {
+            if (!_autoCapture || !_isRecording) return;
+            try
+            {
+                var doc = NavApp.ActiveDocument;
+                if (doc == null) return;
+                foreach (var name in EnumerateNames(doc.SavedViewpoints.RootItem, isViewpoint: true))
+                {
+                    if (!_knownVpNames.Contains(name))
+                    {
+                        _knownVpNames.Add(name);
+                        AddStep(new MacroStep
+                        {
+                            StepType    = MacroStepType.ViewpointActivate,
+                            DisplayName = $"[Auto] Saved viewpoint: {name}",
+                            Parameters  = new Dictionary<string, string>
+                                { ["Name"] = name, ["UseSaved"] = "true" }
+                        });
+                    }
+                }
+            }
+            catch { }
+        }
 
         private void OnCurrentSelectionChanged(object sender, EventArgs e)
         {
