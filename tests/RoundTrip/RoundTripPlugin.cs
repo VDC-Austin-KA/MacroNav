@@ -192,6 +192,19 @@ namespace MacroNAVTests
             var sel = doc.CurrentSelection.SelectedItems;
             Log($"Current selection count: {sel?.Count ?? 0}");
             Check("selection set activated by replay", sel != null && sel.Count > 0);
+
+            // The library lives in the user's real %AppData%; don't leave test
+            // macros behind in it.
+            Log("");
+            Log("=== CLEANUP ===");
+            var cleanup = new MacroLibrary();
+            cleanup.Load();
+            foreach (var stale in cleanup.Macros.Where(m => m.Name == "RoundTrip").ToList())
+                cleanup.Delete(stale.Id);
+            var verify = new MacroLibrary();
+            verify.Load();
+            var leftover = verify.Macros.Count(m => m.Name == "RoundTrip");
+            Check("test macros removed from library", leftover == 0, $"{leftover} left");
         }
 
         private static double Distance(Point3D a, Point3D b)
