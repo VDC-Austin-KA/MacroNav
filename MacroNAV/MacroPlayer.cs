@@ -146,11 +146,30 @@ namespace MacroNAV
                             : StepResult.Fail(step, res.Item2);
                     }
 
+                    // Legacy "Generate Search Sets (All)". This used to return OK
+                    // while doing nothing, so a macro starting with it reported
+                    // success having changed nothing. Run what it describes.
                     case MacroStepType.AutoNavSearchSetGen:
-                        return StepResult.Ok(step, "Legacy step — open AutoNAV and run Function 1/2/3.");
+                        return ExecAutoNavStaticMethod(step,
+                            "AutoNAV.SearchSetGenerator", "GenerateFunction1SearchSets",
+                            "AutoNAV F1: Generate Discipline Search Sets (legacy step)");
+
+                    // Recorded by older builds but never implemented. Failing is
+                    // the honest result: silently reporting success is why
+                    // playback looked like it worked while doing nothing.
+                    case MacroStepType.SearchSetCreate:
+                    case MacroStepType.SearchSetDelete:
+                        return StepResult.Fail(step,
+                            $"{step.StepType} is not implemented. Navisworks does not expose search " +
+                            "serialisation, so a search set cannot be recreated from a recording. " +
+                            "Record the AutoNAV generator step instead.");
+
+                    case MacroStepType.ClashAssignStatus:
+                        return StepResult.Fail(step, "ClashAssignStatus is not implemented.");
 
                     default:
-                        return StepResult.Ok(step, $"Step type {step.StepType} acknowledged.");
+                        return StepResult.Fail(step,
+                            $"Step type {step.StepType} has no implementation — nothing was done.");
                 }
             }
             catch (OperationCanceledException) { return StepResult.Fail(step, "Cancelled"); }
