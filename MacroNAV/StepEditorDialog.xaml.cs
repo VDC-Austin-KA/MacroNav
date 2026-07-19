@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows;
@@ -37,7 +38,12 @@ namespace MacroNAV
             var rows = new ObservableCollection<ParamRow>();
             if (step.Parameters != null)
                 foreach (var kvp in step.Parameters)
-                    rows.Add(new ParamRow { Key = kvp.Key, Value = kvp.Value });
+                    rows.Add(new ParamRow
+                    {
+                        Key     = kvp.Key,
+                        Value   = kvp.Value,
+                        Options = ParameterOptions.For(step.StepType, kvp.Key).ToList()
+                    });
             ParamGrid.ItemsSource = rows;
 
             RefreshSchemaHint(step.StepType);
@@ -64,7 +70,12 @@ namespace MacroNAV
             if (rows.Count > 0) return;
             foreach (var def in StepParameterSchema.For(t))
                 if (!string.IsNullOrEmpty(def.DefaultVal) || def.Required)
-                    rows.Add(new ParamRow { Key = def.Key, Value = def.DefaultVal ?? string.Empty });
+                    rows.Add(new ParamRow
+                    {
+                        Key     = def.Key,
+                        Value   = def.DefaultVal ?? string.Empty,
+                        Options = ParameterOptions.For(t, def.Key).ToList()
+                    });
         }
 
         private string GenerateDefaultName(MacroStepType t)
@@ -132,5 +143,12 @@ namespace MacroNAV
     {
         public string Key   { get; set; }
         public string Value { get; set; }
+
+        // Allowed values for this key, pulled from the document / AutoNAV. Empty
+        // means free text. The editor's ComboBox stays editable either way, so a
+        // name that is not loaded yet can still be typed.
+        public List<string> Options { get; set; } = new List<string>();
+
+        public bool HasOptions => Options != null && Options.Count > 0;
     }
 }

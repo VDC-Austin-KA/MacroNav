@@ -110,6 +110,7 @@
     <Compile Include="AutoNavBridge.cs" />
     <Compile Include="AutoNavRenameTemplates.cs" />
     <Compile Include="StepParameterSchema.cs" />
+    <Compile Include="ParameterOptions.cs" />
     <Compile Include="MacroLibrary.cs" />
     <Compile Include="MacroRecorder.cs" />
     <Compile Include="MacroPlayer.cs" />
@@ -153,6 +154,7 @@
           Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.WinFX.targets')" />
 
 </Project>
+
 
 
 

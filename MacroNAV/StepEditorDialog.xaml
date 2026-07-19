@@ -121,8 +121,27 @@
                       AutoGenerateColumns="False" CanUserAddRows="True" CanUserDeleteRows="True"
                       HeadersVisibility="Column" FontSize="12">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="Key"   Binding="{Binding Key}"   Width="180"/>
-                    <DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="*"/>
+                    <DataGridTextColumn Header="Key" Binding="{Binding Key}" Width="180"/>
+                    <!-- Editable ComboBox: offers the same lists Navisworks and
+                         AutoNAV show, but still accepts typed values for names
+                         that are not loaded yet. -->
+                    <DataGridTemplateColumn Header="Value" Width="*">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Value}" Margin="6,3"
+                                           Foreground="#E8E8F0" VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                        <DataGridTemplateColumn.CellEditingTemplate>
+                            <DataTemplate>
+                                <ComboBox IsEditable="True"
+                                          ItemsSource="{Binding Options}"
+                                          Text="{Binding Value, Mode=TwoWay,
+                                                 UpdateSourceTrigger=PropertyChanged}"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellEditingTemplate>
+                    </DataGridTemplateColumn>
                 </DataGrid.Columns>
             </DataGrid>
 
