@@ -337,13 +337,47 @@ namespace MacroNAV
             return StepResult.Ok(step, $"Appended: {path}");
         }
 
+        // Navisworks loads plugin assemblies lazily, so AutoNAV.dll is absent
+        // from the AppDomain until the user opens AutoNAV at least once. Looking
+        // only at loaded assemblies therefore failed every AutoNAV step, and
+        // caching that miss meant it never recovered even after AutoNAV was
+        // opened. Retry each time, and load from the plugins folder if needed.
         private Assembly FindAutoNavAssembly()
         {
-            if (_autoNavSearched) return _autoNavAssembly;
-            _autoNavSearched = true;
+            if (_autoNavAssembly != null) return _autoNavAssembly;
+
             _autoNavAssembly = AppDomain.CurrentDomain.GetAssemblies()
                 .FirstOrDefault(a => a.GetName().Name == "AutoNAV");
-            return _autoNavAssembly;
+            if (_autoNavAssembly != null) return _autoNavAssembly;
+
+            foreach (var path in AutoNavCandidatePaths())
+            {
+                try
+                {
+                    if (!System.IO.File.Exists(path)) continue;
+                    _autoNavAssembly = Assembly.LoadFrom(path);
+                    RecorderLog.Info("loaded AutoNAV from " + path);
+                    return _autoNavAssembly;
+                }
+                catch (Exception ex) { RecorderLog.Warn("failed loading AutoNAV from " + path, ex); }
+            }
+
+            _autoNavSearched = true;
+            return null;
+        }
+
+        private static IEnumerable<string> AutoNavCandidatePaths()
+        {
+            // Alongside this plugin: <Navisworks>\Plugins\<name>\...
+            var here = System.IO.Path.GetDirectoryName(typeof(MacroPlayer).Assembly.Location);
+            var pluginsRoot = System.IO.Path.GetDirectoryName(here);
+            if (!string.IsNullOrEmpty(pluginsRoot))
+                yield return System.IO.Path.Combine(pluginsRoot, "AutoNAV", "AutoNAV.dll");
+
+            // Navisworks install root, derived from the API assembly.
+            var apiDir = System.IO.Path.GetDirectoryName(typeof(Document).Assembly.Location);
+            if (!string.IsNullOrEmpty(apiDir))
+                yield return System.IO.Path.Combine(apiDir, "Plugins", "AutoNAV", "AutoNAV.dll");
         }
 
         // Renames clash groups by applying a naming template, driving AutoNAV's

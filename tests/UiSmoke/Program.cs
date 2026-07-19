@@ -65,6 +65,7 @@ namespace MacroNAVTests.UiSmoke
                     Console.WriteLine("  ActualHeight: " + window.ActualHeight);
 
                     if (!CheckComboContrast(window)) exit = 1;
+                    if (!CheckPlaybackWiring(window)) exit = 1;
 
                     window.Close();
                     Drain(DispatcherPriority.ContextIdle);
@@ -98,6 +99,81 @@ namespace MacroNAVTests.UiSmoke
             Console.WriteLine(exit == 0 ? "RESULT  PASS" : "RESULT  FAIL");
             return exit;
         }
+
+        // Reproduces "select a saved macro, press Play, nothing happens".
+        // Selects a macro in the library list exactly as a click would, then
+        // inspects the private state Play actually reads.
+        private static bool CheckPlaybackWiring(Window window)
+        {
+            Console.WriteLine();
+            Console.WriteLine("Playback wiring (select a saved macro):");
+
+            var listBox = window.FindName("MacroListBox") as System.Windows.Controls.ListBox;
+            if (listBox == null) { Console.WriteLine("  FAIL  MacroListBox not found"); return false; }
+            Console.WriteLine($"  library macros: {listBox.Items.Count}");
+            if (listBox.Items.Count == 0)
+            {
+                Console.WriteLine("  SKIP  no saved macros to select");
+                return true;
+            }
+
+            // Pick the macro with the most steps: an empty one proves nothing.
+            object best = null; int bestSteps = -1;
+            foreach (var candidate in listBox.Items)
+            {
+                int n = ((System.Collections.ICollection)Prop(candidate, "Steps")).Count;
+                if (n > bestSteps) { bestSteps = n; best = candidate; }
+            }
+            Console.WriteLine($"  selecting '{Prop(best, "Name")}' with {bestSteps} step(s) on disk");
+
+            listBox.SelectedItem = best;
+            Drain(DispatcherPriority.ContextIdle);
+
+            var recorder  = Field(window, "_recorder");
+            var stepVMs   = (System.Collections.ICollection)Field(window, "_stepVMs");
+            var active    = Field(window, "_activeMacro");
+            var recSteps  = (System.Collections.ICollection)Prop(recorder, "Steps");
+
+            Console.WriteLine($"  _activeMacro      : {(active == null ? "NULL" : Prop(active, "Name"))}");
+            Console.WriteLine($"  _recorder.Steps   : {recSteps.Count}   <- what Play actually replays");
+            Console.WriteLine($"  _stepVMs (UI list): {stepVMs.Count}");
+
+            bool ok = true;
+            if (active == null) { Console.WriteLine("  FAIL  no active macro after selection"); ok = false; }
+            if (recSteps.Count != bestSteps)
+            {
+                Console.WriteLine($"  FAIL  recorder has {recSteps.Count}, expected {bestSteps} " +
+                                  "- Play would replay the wrong number of steps");
+                ok = false;
+            }
+            if (stepVMs.Count != bestSteps)
+            {
+                Console.WriteLine($"  FAIL  UI list has {stepVMs.Count}, expected {bestSteps} " +
+                                  "(duplicated rows)");
+                ok = false;
+            }
+
+            // PlayAsync only runs steps whose IsEnabled is true. DataContract
+            // deserialization skips property initialisers, so a missing
+            // IsEnabled in older JSON silently yields false and plays nothing.
+            int enabled = 0;
+            foreach (var s in recSteps) if ((bool)Prop(s, "IsEnabled")) enabled++;
+            Console.WriteLine($"  enabled steps     : {enabled}/{recSteps.Count}");
+            if (recSteps.Count > 0 && enabled == 0)
+            {
+                Console.WriteLine("  FAIL  every step is disabled - Play is a no-op");
+                ok = false;
+            }
+            return ok;
+        }
+
+        private static object Field(object target, string name)
+            => target.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)
+                     ?.GetValue(target);
+
+        private static object Prop(object target, string name)
+            => target.GetType().GetProperty(name, BindingFlags.Instance | BindingFlags.Public)
+                     ?.GetValue(target);
 
         // Opens every ComboBox and measures the rendered item colours. The
         // dropdown popup is a separate visual tree that does not inherit the
@@ -257,7 +333,18 @@ namespace MacroNAVTests.UiSmoke
 
             public override void WriteLine(string message)
             {
-                if (!string.IsNullOrEmpty(message)) BindingErrors.Add(message);
+                if (string.IsNullOrEmpty(message)) return;
+
+                // WPF emits this for every generated ListBoxItem/DataGridRow: the
+                // container looks up alignment from its ItemsControl before being
+                // attached. It is framework noise, not a fault in this UI, and it
+                // would otherwise drown out real binding failures.
+                if (message.Contains("AncestorType='System.Windows.Controls.ItemsControl'")
+                    && (message.Contains("Path=HorizontalContentAlignment")
+                        || message.Contains("Path=VerticalContentAlignment")))
+                    return;
+
+                BindingErrors.Add(message);
             }
         }
     }

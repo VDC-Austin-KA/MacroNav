@@ -50,7 +50,11 @@ namespace MacroNAV
             _player.StepStarted += (s, step) => Dispatcher.Invoke(() =>
                 SetStatus($"Running: {step.DisplayName}"));
             _player.StepCompleted += (s, r) => Dispatcher.Invoke(() =>
-                SetStatus(r.Success ? $"✓ {r.Message}" : $"✗ {r.Message}"));
+            {
+                if (r.Success) _playSucceeded++;
+                else _playFailures.Add($"{r.Step.DisplayName}: {r.Message}");
+                SetStatus(r.Success ? $"✓ {r.Message}" : $"✗ {r.Message}");
+            });
             _player.PlaybackCompleted += (s, e) => Dispatcher.Invoke(OnPlaybackCompleted);
 
             // Blink timer for recording indicator
@@ -99,12 +103,10 @@ namespace MacroNAV
 
             _stepVMs.Clear();
             _recorder.ClearSteps();
+            // InsertStep raises StepAdded, which AppendStep already handles by
+            // adding a row. Adding one here too listed every step twice.
             foreach (var step in macro.Steps)
-            {
-                // Seed recorder so edits go back to the same list
-                _recorder.InsertStep(_stepVMs.Count, step);
-                _stepVMs.Add(new StepViewModel(step));
-            }
+                _recorder.InsertStep(_recorder.Steps.Count, step);
             UpdateStepNumbers();
             UpdateStepCount();
         }
@@ -359,11 +361,22 @@ namespace MacroNAV
             BtnPlay.IsEnabled = false;
             BtnStopPlay.IsEnabled = true;
             BtnRecord.IsEnabled = false;
-            SetStatus("Playing macro...");
 
             var steps = _recorder.Steps.ToList();
-            await _player.PlayAsync(steps);
+            SetStatus($"Playing {steps.Count} step(s)...");
+
+            _playFailures.Clear();
+            _playSucceeded = 0;
+
+            // Previously this stopped on the first error and OnPlaybackCompleted
+            // immediately overwrote the message, so a macro whose first step
+            // referenced something missing looked like it did nothing at all.
+            // Run every step, then report a summary that survives.
+            await _player.PlayAsync(steps, stopOnError: false);
         }
+
+        private readonly List<string> _playFailures = new List<string>();
+        private int _playSucceeded;
 
         private void BtnStopPlay_Click(object sender, RoutedEventArgs e) => _player.Stop();
 
@@ -372,7 +385,19 @@ namespace MacroNAV
             BtnPlay.IsEnabled = true;
             BtnStopPlay.IsEnabled = false;
             BtnRecord.IsEnabled = true;
-            SetStatus("Playback complete.");
+
+            if (_playFailures.Count == 0)
+            {
+                SetStatus($"Playback complete — {_playSucceeded} step(s) succeeded.");
+                return;
+            }
+
+            // Keep the first failure on screen; the full list goes to the log so
+            // a failing macro is diagnosable instead of silent.
+            SetStatus($"Playback finished — {_playSucceeded} ok, {_playFailures.Count} failed. " +
+                      $"First: {_playFailures[0]}");
+            RecorderLog.Warn($"playback: {_playSucceeded} ok, {_playFailures.Count} failed");
+            foreach (var f in _playFailures) RecorderLog.Warn("  " + f);
         }
 
         // ── Quick Capture Panel ───────────────────────────
