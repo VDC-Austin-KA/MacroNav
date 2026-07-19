@@ -136,6 +136,32 @@ namespace MacroNAVTests
             Log($"created 4 sets in ONE transaction -> recorder captured {rec2.Steps.Count} (expect 4)");
             foreach (var s in rec2.Steps) Log($"   {s.DisplayName}");
 
+            // --- Does playback actually DO anything? --------------------------
+            // Replays each step type and reports the result, so "reports success
+            // but changes nothing" cannot hide.
+            Log("");
+            Log("=== PLAYBACK REALITY CHECK ===");
+            var probe = new List<MacroStep>
+            {
+                new MacroStep { StepType = MacroStepType.SearchSetCreate,
+                    DisplayName = "create set", Parameters = new Dictionary<string,string>{["Name"]="DIAG_X"} },
+                new MacroStep { StepType = MacroStepType.ClashAssignStatus,
+                    DisplayName = "assign status", Parameters = new Dictionary<string,string>() },
+                new MacroStep { StepType = MacroStepType.AutoNavSearchSetGen,
+                    DisplayName = "legacy generate search sets", Parameters = new Dictionary<string,string>() },
+            };
+            var probePlayer = new MacroPlayer();
+            var probeResults = new List<StepResult>();
+            probePlayer.StepCompleted += (s, r) => probeResults.Add(r);
+            probePlayer.PlayAsync(probe, stopOnError: false).GetAwaiter().GetResult();
+            foreach (var r in probeResults)
+                Log($"  [{(r.Success ? "ok  " : "FAIL")}] {r.Step.StepType,-22} {r.Message}");
+
+            var noop = probeResults.Take(2).Count(r => r.Success);
+            Log(noop == 0
+                ? "  PASS  unimplemented steps now fail instead of reporting success"
+                : $"  FAIL  {noop} unimplemented step(s) still reported success");
+
             Log("");
             Log("=== CLEANUP ===");
             RemoveDiagItems(doc);

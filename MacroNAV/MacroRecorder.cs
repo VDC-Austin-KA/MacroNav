@@ -166,11 +166,17 @@ namespace MacroNAV
                     try
                     {
                         _knownSetNames.Add(name);
+                        // Naming matters here. Playback can only re-select this
+                        // set; it cannot recreate it, because Navisworks exposes
+                        // no way to serialise a search. Recording the AutoNAV
+                        // generator step is what actually reproduces the sets.
                         AddStep(new MacroStep
                         {
                             StepType    = MacroStepType.SearchSetActivate,
-                            DisplayName = $"[Auto] Selection set created: {name}",
-                            Description = "Re-selects this named set on playback (must exist in the target model).",
+                            DisplayName = $"[Auto] Select set: {name}",
+                            Description = "Selects this named set on playback. It does NOT create the set — " +
+                                          "the set must already exist in the target model. To regenerate sets, " +
+                                          "record the AutoNAV search-set generation step instead.",
                             Parameters  = new Dictionary<string, string> { ["Name"] = name }
                         });
                         added++;
